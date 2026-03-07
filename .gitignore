@@ -10,4 +10,5 @@ obj/
 
 node_modules/
 
-.env
+v
+terraform

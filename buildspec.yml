@@ -7,10 +7,11 @@ phases:
 
   build:
     commands:
-      - echo Build started
       - dotnet restore
       - dotnet publish -c Release -o publish
 
 artifacts:
   files:
-    - '**/*'
+    - appspec.yml
+    - scripts/**
+    - publish/**
