@@ -1,0 +1,13 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.log
+crash.log
+
+bin/
+obj/
+
+node_modules/
+
+.env
