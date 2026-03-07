@@ -1,13 +1,14 @@
 version: 0.2
 
 phases:
-
   install:
     runtime-versions:
       dotnet: 6.0
 
   build:
     commands:
+      - echo Build started
+      - dotnet restore
       - dotnet publish -c Release -o publish
 
 artifacts:
