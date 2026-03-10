@@ -8,17 +8,10 @@ phases:
 
   build:
     commands:
-      - echo "Building application"
       - dotnet restore
       - dotnet publish -c Release -o publish
 
-  post_build:
-    commands:
-      - echo "Preparing artifact"
-      - cp appspec.yml publish/
-      - cp -r scripts publish/
-
 artifacts:
+  base-directory: publish
   files:
     - '**/*'
-  base-directory: publish
