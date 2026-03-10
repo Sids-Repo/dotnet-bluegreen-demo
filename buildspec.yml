@@ -11,6 +11,12 @@ phases:
       - dotnet restore
       - dotnet publish -c Release -o publish
 
+  post_build:
+    commands:
+      - echo "Preparing CodeDeploy bundle"
+      - cp appspec.yml publish/
+      - cp -r scripts publish/
+
 artifacts:
   base-directory: publish
   files:
