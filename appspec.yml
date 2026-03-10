@@ -3,11 +3,12 @@ os: linux
 
 files:
   - source: /
-    destination: /var/www/dotnet-api
+    destination: /var/www/app
 
 hooks:
+
   ApplicationStop:
-    - location: scripts/stop_application.sh
+    - location: scripts/stop_server.sh
       timeout: 300
       runas: root
 
@@ -16,17 +17,7 @@ hooks:
       timeout: 300
       runas: root
 
-  AfterInstall:
-    - location: scripts/after_install.sh
-      timeout: 300
-      runas: root
-
   ApplicationStart:
-    - location: scripts/start_application.sh
-      timeout: 300
-      runas: root
-
-  ValidateService:
-    - location: scripts/validate_service.sh
+    - location: scripts/start_server.sh
       timeout: 300
       runas: root

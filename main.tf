@@ -2,70 +2,187 @@ provider "aws" {
   region = "ap-south-1"
 }
 
-data "aws_vpc" "existing" {
-  id = "vpc-0e063acc05d699fe8"
+############################
+# VPC
+############################
+
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = "bluegreen-vpc"
+  }
 }
 
-data "aws_subnet" "subnet1" {
-  id = "subnet-04c8f806e7d7bfbee"
+############################
+# SUBNETS
+############################
+
+resource "aws_subnet" "subnet1" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "ap-south-1a"
+  map_public_ip_on_launch = true
 }
 
-data "aws_subnet" "subnet2" {
-  id = "subnet-0751f308f8f14bfa8"
+resource "aws_subnet" "subnet2" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "ap-south-1b"
+  map_public_ip_on_launch = true
 }
 
-data "aws_security_group" "ec2_sg" {
-  id = "sg-0b10b757a7c7395b9"
+############################
+# INTERNET GATEWAY
+############################
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
 }
 
-data "aws_lb_target_group" "blue" {
-  name = "blue-tg-demo"
+############################
+# ROUTE TABLE
+############################
+
+resource "aws_route_table" "rt" {
+  vpc_id = aws_vpc.main.id
 }
 
-data "aws_lb_target_group" "green" {
-  name = "green-tg-demo"
+resource "aws_route" "internet" {
+  route_table_id         = aws_route_table.rt.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.igw.id
 }
 
-data "aws_s3_bucket" "artifacts" {
+resource "aws_route_table_association" "a1" {
+  subnet_id      = aws_subnet.subnet1.id
+  route_table_id = aws_route_table.rt.id
+}
+
+resource "aws_route_table_association" "a2" {
+  subnet_id      = aws_subnet.subnet2.id
+  route_table_id = aws_route_table.rt.id
+}
+
+############################
+# SECURITY GROUP
+############################
+
+resource "aws_security_group" "ec2_sg" {
+
+  name   = "dotnet-sg"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+############################
+# TARGET GROUPS
+############################
+
+resource "aws_lb_target_group" "blue" {
+  name     = "blue-tg-demo"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+}
+
+resource "aws_lb_target_group" "green" {
+  name     = "green-tg-demo"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+}
+
+############################
+# S3 ARTIFACT BUCKET
+############################
+
+resource "aws_s3_bucket" "artifacts" {
   bucket = "dotnet-bluegreen-artifacts-demo-604604739963"
 }
 
-data "aws_iam_role" "pipeline_role" {
+############################
+# IAM ROLES
+############################
+
+resource "aws_iam_role" "pipeline_role" {
+
   name = "pipeline-role-demo"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "codepipeline.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
 }
 
-data "aws_iam_role" "codebuild_role" {
+resource "aws_iam_role" "codebuild_role" {
+
   name = "codebuild-role-demo"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "codebuild.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
 }
 
-data "aws_iam_role" "codedeploy_role" {
+resource "aws_iam_role" "codedeploy_role" {
+
   name = "codedeploy-role-demo"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "codedeploy.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
 }
 
-########################################
-# EC2 ROLE FOR CODEDEPLOY
-########################################
+############################
+# EC2 ROLE
+############################
 
 resource "aws_iam_role" "ec2_role" {
+
   name = "codedeploy-ec2-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
   })
-}
-
-resource "aws_iam_role_policy_attachment" "codedeploy_ec2_policy" {
-  role       = aws_iam_role.ec2_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforAWSCodeDeploy"
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
@@ -73,9 +190,9 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   role = aws_iam_role.ec2_role.name
 }
 
-########################################
+############################
 # LAUNCH TEMPLATE
-########################################
+############################
 
 resource "aws_launch_template" "app" {
 
@@ -89,12 +206,11 @@ resource "aws_launch_template" "app" {
 
   network_interfaces {
     associate_public_ip_address = true
-    security_groups             = [data.aws_security_group.ec2_sg.id]
+    security_groups             = [aws_security_group.ec2_sg.id]
   }
 
   user_data = base64encode(<<EOF
 #!/bin/bash
-
 set -e
 
 apt-get update -y
@@ -105,23 +221,42 @@ cd /home/ubuntu
 wget https://aws-codedeploy-ap-south-1.s3.ap-south-1.amazonaws.com/latest/install
 
 chmod +x install
-
 ./install auto
 
 systemctl enable codedeploy-agent
 systemctl start codedeploy-agent
-
-sleep 20
-
-systemctl restart codedeploy-agent
-
 EOF
   )
 }
 
-########################################
+############################
+# AUTOSCALING GROUP
+############################
+
+resource "aws_autoscaling_group" "blue_asg" {
+
+  desired_capacity = 1
+  max_size         = 2
+  min_size         = 1
+
+  vpc_zone_identifier = [
+    aws_subnet.subnet1.id,
+    aws_subnet.subnet2.id
+  ]
+
+  launch_template {
+    id      = aws_launch_template.app.id
+    version = "$Latest"
+  }
+
+  target_group_arns = [
+    aws_lb_target_group.blue.arn
+  ]
+}
+
+############################
 # CODEDEPLOY APPLICATION
-########################################
+############################
 
 resource "aws_codedeploy_app" "app" {
 
@@ -129,160 +264,26 @@ resource "aws_codedeploy_app" "app" {
   compute_platform = "Server"
 }
 
-########################################
-# CODEDEPLOY DEPLOYMENT GROUP
-########################################
-
-resource "aws_codedeploy_deployment_group" "group" {
-
-  app_name              = aws_codedeploy_app.app.name
-  deployment_group_name = "bluegreen-group"
-
-  service_role_arn = data.aws_iam_role.codedeploy_role.arn
-
-  autoscaling_groups = [
-    "terraform-20260307154006365400000006"
-  ]
-
-  deployment_style {
-    deployment_type   = "BLUE_GREEN"
-    deployment_option = "WITH_TRAFFIC_CONTROL"
-  }
-
-  blue_green_deployment_config {
-
-    deployment_ready_option {
-      action_on_timeout = "CONTINUE_DEPLOYMENT"
-    }
-
-    terminate_blue_instances_on_deployment_success {
-
-      action = "TERMINATE"
-
-      termination_wait_time_in_minutes = 5
-    }
-  }
-
-  load_balancer_info {
-
-    target_group_info {
-      name = data.aws_lb_target_group.blue.name
-    }
-  }
-}
-
-########################################
-# CODEBUILD PROJECT
-########################################
+############################
+# CODEBUILD
+############################
 
 resource "aws_codebuild_project" "build" {
 
   name         = "dotnet-build"
-  service_role = data.aws_iam_role.codebuild_role.arn
+  service_role = aws_iam_role.codebuild_role.arn
 
   artifacts {
     type = "CODEPIPELINE"
   }
 
   environment {
-
     compute_type = "BUILD_GENERAL1_SMALL"
-
-    image = "aws/codebuild/standard:7.0"
-
-    type = "LINUX_CONTAINER"
+    image        = "aws/codebuild/standard:7.0"
+    type         = "LINUX_CONTAINER"
   }
 
   source {
     type = "CODEPIPELINE"
-  }
-}
-
-########################################
-# CODEPIPELINE
-########################################
-
-resource "aws_codepipeline" "pipeline" {
-
-  name     = "dotnet-bluegreen-pipeline"
-  role_arn = data.aws_iam_role.pipeline_role.arn
-
-  artifact_store {
-
-    location = data.aws_s3_bucket.artifacts.bucket
-    type     = "S3"
-  }
-
-  stage {
-
-    name = "Source"
-
-    action {
-
-      name             = "Source"
-      category         = "Source"
-      owner            = "AWS"
-      provider         = "CodeStarSourceConnection"
-      version          = "1"
-
-      output_artifacts = ["source_output"]
-
-      configuration = {
-
-        ConnectionArn = "arn:aws:codeconnections:ap-south-1:604604739963:connection/e06a73b1-09cd-48d2-ae59-99a33c526c28"
-
-        FullRepositoryId = "Sids-Repo/dotnet-bluegreen-demo"
-
-        BranchName = "main"
-
-        DetectChanges = "true"
-      }
-    }
-  }
-
-  stage {
-
-    name = "Build"
-
-    action {
-
-      name     = "Build"
-      category = "Build"
-      owner    = "AWS"
-      provider = "CodeBuild"
-      version  = "1"
-
-      input_artifacts  = ["source_output"]
-
-      output_artifacts = ["build_output"]
-
-      configuration = {
-
-        ProjectName = aws_codebuild_project.build.name
-      }
-    }
-  }
-
-  stage {
-
-    name = "Deploy"
-
-    action {
-
-      name     = "Deploy"
-      category = "Deploy"
-      owner    = "AWS"
-      provider = "CodeDeploy"
-      version  = "1"
-
-      input_artifacts = ["build_output"]
-
-      configuration = {
-
-        ApplicationName = aws_codedeploy_app.app.name
-
-        DeploymentGroupName = aws_codedeploy_deployment_group.group.deployment_group_name
-      }
-    }
   }
 }

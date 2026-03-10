@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /var/www/app/publish
+cd /var/www/app
 
 export ASPNETCORE_URLS=http://0.0.0.0:80
 
