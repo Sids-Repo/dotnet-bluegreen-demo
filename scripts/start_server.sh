@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /var/www/app
+cd /opt/codedeploy-agent/deployment-root/*/deployment-archive
 
 export ASPNETCORE_URLS=http://0.0.0.0:80
 
