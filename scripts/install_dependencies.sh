@@ -2,11 +2,14 @@
 
 echo "Starting dependency installation..."
 
+# Create app directory FIRST
+sudo mkdir -p /var/www/app
+
 sudo apt-get update -y
 
 sudo apt-get install -y wget
 
-# Install .NET runtime if not already installed
+# Install .NET runtime if not installed
 if ! command -v dotnet &> /dev/null
 then
     echo "Installing .NET..."

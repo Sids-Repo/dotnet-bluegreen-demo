@@ -1,2 +1,2 @@
 #!/bin/bash
-pkill dotnet
+pkill dotnet || true
